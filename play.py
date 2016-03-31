@@ -7,14 +7,17 @@ import matplotlib.pyplot as plt
 import math
 
 from sklearn.datasets import make_blobs
-plot = False
+from functions import selection_algorithm
+
+plot = True
 verbose = False
 tracking = True
+selection = False
 
 # Generate the data
 n_samples = 1500
 random_state = 20  # Does not converge
-random_state = 41
+# random_state = 41
 n_features = 2
 centers = 3
 
@@ -26,11 +29,13 @@ np.random.seed(random_state)
 # The algorithm
 N = 3
 m = 1
+s = 2  # Number of neurons to change per round
 D = math.inf
 eta = 1.0 / n_samples
+eta = 0.1
 neurons = np.random.rand(N, n_features)
 D_vector = np.zeros(n_samples)
-T = 10
+T = 50
 
 # Initialize neuron to data hash with empty list
 neuron_to_data = {}
@@ -46,52 +51,15 @@ follow_neuron_1_y = []
 follow_neuron_2_x = []
 follow_neuron_2_y = []
 
-def calculate_local_distortion(D_vector, neuron_to_data, gamma=0.8):
-    """
-    Calculate thes local distortion
-    """
+total_distortion = []
 
-    local_distortions = np.zeros(len(neuron_to_data))
-    for neuron, data in neuron_to_data.items():
-        local_distortions[neuron] = np.sum(D_vector[data])
+time = np.arange(T)
+s_half_life = 10
+s_0 = 2
+s_sequence = np.floor(s_0 * np.exp(-time / s_half_life)).astype('int')
 
-    # Normalize
-
-    local_distortions = local_distortions**gamma / (local_distortions**gamma).sum()
-
-    return local_distortions
-
-def max_N_numbers(vector, N):
-    """
-    Gives you the N greatest elements in
-    vector
-    """
-
-    return np.argpartition(-vector, N)[:N]
-
-def count_new_neurons(g, s):
-    """
-    Returns a vector with number of new neurons per 
-    distortion
-    """
-
-    mu = np.floor(g * s).astype('int')
-    print('mu', mu)
-    aux = g * s - mu
-    print('remaining', aux)
-    N_left = s - mu.sum()
-    indexes = max_N_numbers(aux, N_left)
-    print('indxes', indexes)
-    mu[indexes] += 1
-
-    return mu
-    
-local_distortions = np.array([4.5, 16.0, 3.4, 0.1, 1.0])
-g = local_distortions**0.8 / (local_distortions**0.8).sum()
-print('--------------g------')
-print('new_neurons', count_new_neurons(g, 2))
-
-for t in range(T):
+for t, s in zip(time, s_sequence):
+    # Data loop
     for x_index, x in enumerate(X):
         # Conventional competitive learning
         distances = np.linalg.norm(neurons - x, axis=1)
@@ -104,15 +72,20 @@ for t in range(T):
         D_vector[x_index] = np.linalg.norm(neurons[closest_neuron, :] - x)
         neuron_to_data[closest_neuron].append(x_index)
 
-        if tracking: 
-            follow_neuron_0_x.append(neurons[0, 0])
-            follow_neuron_0_y.append(neurons[0, 1])
 
-            follow_neuron_1_x.append(neurons[1, 0])
-            follow_neuron_1_y.append(neurons[1, 1])
+    if tracking: 
+        follow_neuron_0_x.append(neurons[0, 0])
+        follow_neuron_0_y.append(neurons[0, 1])
 
-            follow_neuron_2_x.append(neurons[2, 0])
-            follow_neuron_2_y.append(neurons[2, 1])
+        follow_neuron_1_x.append(neurons[1, 0])
+        follow_neuron_1_y.append(neurons[1, 1])
+
+        follow_neuron_2_x.append(neurons[2, 0])
+        follow_neuron_2_y.append(neurons[2, 1])
+
+    # Selection
+    if selection:
+        neurons = selection_algorithm(neurons, D_vector, neuron_to_data, s)
 
     if verbose:
         print('winning neuron', closest_neuron)
@@ -120,10 +93,12 @@ for t in range(T):
     if (t % 10 == 0):
         print('time', t)
 
+    total_distortion.append(np.sum(D_vector))
+
 if plot:
     # Visualize X
     fig = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
     ax.plot(X[:, 0], X[:, 1], 'x', markersize=6)
     ax.hold(True)
     if False:
@@ -137,4 +112,10 @@ if plot:
         ax.plot(follow_neuron_1_x, follow_neuron_1_y, 'o-', markersize=12)
         ax.plot(follow_neuron_2_x, follow_neuron_2_y, 'o-', markersize=12)
     
+
+
+    ax2 = fig.add_subplot(212)
+    ax2.plot(time, total_distortion)
+
     fig.show()
+    
