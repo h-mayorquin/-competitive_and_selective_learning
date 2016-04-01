@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def calculate_local_distortion(D_vector, neuron_to_data, normalize=True, gamma=0.8):
     """
     Calculate thes local distortion
@@ -11,9 +12,10 @@ def calculate_local_distortion(D_vector, neuron_to_data, normalize=True, gamma=0
 
     # Normalize
     if normalize:
-        local_distortions = local_distortions**gamma / (local_distortions**gamma).sum()
+        local_distortions = local_distortions ** gamma / (local_distortions ** gamma).sum()
 
     return local_distortions
+
 
 def max_N_numbers(vector, N):
     """
@@ -23,6 +25,7 @@ def max_N_numbers(vector, N):
 
     return np.argpartition(-vector, N)[:N]
 
+
 def min_N_numbers(vector, N):
     """
     Gives you the indexes of the N smallest elements in
@@ -30,6 +33,7 @@ def min_N_numbers(vector, N):
     """
 
     return np.argpartition(vector, N)[:N]
+
 
 def count_new_neurons(g, s):
     """
@@ -47,6 +51,7 @@ def count_new_neurons(g, s):
     mu[indexes] += 1
 
     return mu
+
 
 def modify_neurons_mine(neurons, local_distortions, s):
     """
@@ -67,6 +72,7 @@ def modify_neurons_mine(neurons, local_distortions, s):
 
     return neurons
 
+
 def selection_algorithm(neurons, D_vector, neuron_to_data, s):
     """
     This is the selection algorithm, it selects for
@@ -78,3 +84,34 @@ def selection_algorithm(neurons, D_vector, neuron_to_data, s):
     neurons = modify_neurons_mine(neurons, distortion, s)
 
     return neurons
+
+
+def calculate_distortion(neurons, data, labels):
+    """
+    This functions returns the mean distortion
+    calculate by taking the distance between the
+    each point and the neuron that is labeld with
+    """
+
+    point_distortion = np.zeros_like(labels)
+    for index, x in enumerate(data):
+        distance = np.linalg.norm(x - neurons[labels[index]])
+        point_distortion[index] = distance
+
+    return np.mean(point_distortion)
+
+
+def get_key_to_indexes_dic(labels):
+    """
+    Builds a dictionary whose keys are the labels and whose
+    items are all the indexes that have that particular key
+    """
+
+    # Get the unique labels and initialize the dictionary
+    label_set = set(labels)
+    key_to_indexes = {}
+
+    for label in label_set:
+        key_to_indexes[label] = np.where(labels == label)[0]
+
+    return key_to_indexes
