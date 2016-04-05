@@ -152,7 +152,7 @@ def _competition(X, centers, distortions, centers_to_data, eta):
     return centers, distortions, centers_to_data
 
 
-def scl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s=1, selection=True, random_state=None):
+def csl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
     """
     Selective and competitive learning. This implements the whole algorithm.
 
@@ -167,7 +167,7 @@ def scl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s=1, selection=True,
     # Get the s function
     time = np.arange(0, max_iter)
     s_half_life = max_iter / 4.0
-    s_sequence = np.floor(s * np.exp(-time / s_half_life)).astype('int')
+    s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
 
     # Initialize the dictionary
     centers_to_data = {}
@@ -197,7 +197,7 @@ class CSL(BaseEstimator, TransformerMixin):
     The algorithm is implemented in the style of Sklearn.
     """
 
-    def __init__(self, n_clusters=10, max_iter=300, tol=0.001, random_state=None):
+    def __init__(self, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
         """
         Parameters
         ------------
@@ -210,6 +210,12 @@ class CSL(BaseEstimator, TransformerMixin):
         tol: float, default, 1e-4
             Relative tolerance with regards to distortion before decalring convergence.
 
+        eta: float, optional, default 0.1
+            The learning rate.
+
+        s0: float, optional, default 1
+           The starting value of neurons to change with the selection policy.
+
         random_state: integer or numpy.RandomState, optional
                 The generator used to initialize the centers.
                 If an integer is given, it fixes the seed. Defaults to the global numpy random
@@ -217,7 +223,7 @@ class CSL(BaseEstimator, TransformerMixin):
 
         Attributes:
         ------------
-        cluster_centers_: array, [n_clusters, n_features]
+        centers_: array, [n_clusters, n_features]
             coordinates of clusters or neurons centers.
 
         distortion_: float
@@ -229,6 +235,8 @@ class CSL(BaseEstimator, TransformerMixin):
         self.n_clusters = n_clusters
         self.max_iter = max_iter
         self.tol = tol
+        self.eta = eta
+        self.s0 = s0
         self.random_state = random_state
 
     def _check_fit_data(self, X):
@@ -238,6 +246,8 @@ class CSL(BaseEstimator, TransformerMixin):
             raise ValueError("n_samples=%d should be >= n_clusters=%d" % (
                 X.shape[0], self.n_clusters))
 
+        return X
+
     def fit(self, X, y=None):
         """
         Computer CSL
@@ -245,3 +255,9 @@ class CSL(BaseEstimator, TransformerMixin):
         random_state = check_random_state(self.random_state)
         X = self._check_fit_data(X)
 
+        self.centers, self.distortions, self.centers_to_data = \
+            csl(X, n_clusters=self.n_clusters, max_iter=self.max_iter,
+                tol=self.tol, eta=self.eta, s0=self.s0,
+                random_state=random_state)
+
+        return self
