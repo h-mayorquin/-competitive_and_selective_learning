@@ -47,7 +47,7 @@ def count_new_neurons(g, s):
     print('remaining', aux)
     N_left = s - mu.sum()
     indexes = max_N_numbers(aux, N_left)
-    print('indxes', indexes)
+    print('indexes', indexes)
     mu[indexes] += 1
 
     return mu
@@ -115,3 +115,61 @@ def get_key_to_indexes_dic(labels):
         key_to_indexes[label] = np.where(labels == label)[0]
 
     return key_to_indexes
+
+
+def competition(X, centers, distortions, centers_to_data, eta):
+    """
+    Implements the competition part of the SCL algorithm
+    That is, it goes through all the examples and modifies the
+    centers of the winners according to this result
+    """
+
+    for x_index, x in enumerate(X):
+        # Conventional competitive learning
+        distances = np.linalg.norm(centers - x, axis=1)
+        closest_center = np.argmin(distances)
+        # Modify center positions
+        difference = x - centers[closest_center, :]
+        centers[closest_center, :] += eta * difference
+
+        # Store the distance to each center
+        distortions[x_index] = distances[closest_center]
+        centers_to_data[closest_center].append(x_index)
+
+    return centers, distortions, centers_to_data
+
+
+def scl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s=1, selection=True, random_state=None):
+    """
+    Selective and competitive learning
+    """
+    # Initialize the centers and the distortion
+    n_samples, n_features = X.shape
+    centers = random_state.rand(n_clusters, n_features)
+    distortions = np.zeros(n_samples)
+
+    # Get the s function
+    time = np.arange(0, max_iter)
+    s_half_life = max_iter / 4.0
+    s_sequence = np.floor(s * np.exp(-time / s_half_life)).astype('int')
+
+    # Initialize the dictionary
+    centers_to_data = {}
+    for center in range(n_clusters):
+        centers_to_data[center] = []
+
+    iterations = 0
+    while iterations < max_iter:
+        # Competition
+        centers, distortions, centers_to_data = competition(X, centers, distortions, centers_to_data, eta)
+        # Selection
+        if selection:
+            center = selection_algorithm(centers, distortions,
+                                         centers_to_data, s_sequence[iterations])
+
+        # Increase iterations
+        iterations += 1
+
+        # Implement mechanism for tolerance
+
+    return centers, distortions, centers_to_data
