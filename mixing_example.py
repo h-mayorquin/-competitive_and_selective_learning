@@ -21,6 +21,12 @@ fig = plt.figure(figsize=(16, 12))
 ax = fig.add_subplot(121)
 ax.plot(X[:, 0], X[:, 1], '*', markersize=12)
 
+def sample_blobs(X, y, sampling_list):
+    """
+    Sample the data from X in a way that you extractHej,
+
+
+    """
 
 # Now let's do the mixing
 sampling_list = [0.2, 0.8, 0.4]

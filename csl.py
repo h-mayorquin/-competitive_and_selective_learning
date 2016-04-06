@@ -38,7 +38,7 @@ def _modify_centers(centers, local_distortions, s, random_state):
     """
     This sends eliminates the s centroids with the smallest local
     distortion and instead creates new centroids very close to the
-    centroids with the highest distortion.
+     centroids with the highest distortion.
 
     Parameters
     ------------
@@ -94,7 +94,7 @@ def _selection_algorithm(centers, distortions, centers_to_data, s, random_state=
     return centers
 
 
-def _competition(X, centers, distortions, centers_to_data, eta):
+def _competition(X, centers, distortions, n_clusters, eta):
     """
     Implements the competition part of the SCL algorithm
 
@@ -121,10 +121,8 @@ def _competition(X, centers, distortions, centers_to_data, eta):
         This numpy array contains the distance between each sample
         and the centroid to which it belongs.
 
-    centers_to_data: dictionary
-        The keys of this dictionary are each of the centers and the
-        items are all the indexes of X that belong to that center in
-        the smallest distance sense.
+    n_clusters: int,
+        Number of clusters, centroids or neurons.
 
     eta: float
         The learning rate.
@@ -143,7 +141,12 @@ def _competition(X, centers, distortions, centers_to_data, eta):
         items are all the indexes of X that belong to that center in
         the smallest distance sense.
 
+
     """
+    # Initialize the dictionary
+    centers_to_data = {}
+    for center in range(n_clusters):
+        centers_to_data[center] = []
 
     for x_index, x in enumerate(X):
         # Conventional competitive learning
@@ -161,11 +164,101 @@ def _competition(X, centers, distortions, centers_to_data, eta):
     return centers, distortions, centers_to_data
 
 
+def _s_sequence(n_iter, s0):
+    """
+    This functions retunrs the sequence (s) of centroids, neurons
+    or clusters that have to be modified at every iteration step.
+
+    Parameters
+    ------------------
+    n_iter: int
+        Number of iterations
+    s0: float
+        Initial value at the iteration 0.
+    Returns
+    -----------
+    s_sequence: ndarray of floats shape (n_iter, )
+         the sequence of s values.
+    """
+    time = np.arange(0, n_iter)
+    s_half_life = n_iter / 4.0
+    s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
+
+    return s_sequence
+
+
+def _labels(centers_to_data, n_samples):
+    """
+    Get the assigned labels for each sample
+
+    Parameters
+    ----------
+    center_to_data:
+
+    n_samples: int,
+        number of samples
+
+    Returns
+    -----------
+    labels: ndarray of int
+        A vector with each element as the assigned label.
+
+    """
+
+    labels = np.zeros(n_samples)
+
+    for key, indexes in centers_to_data.items():
+        for index in indexes:
+            labels[index] = key
+
+    return labels
+
+
 def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
     """
     Selective and competitive learning. This implements the whole algorithm.
 
-    Parameters:
+    Parameters
+    ---------------------
+    n_clusters : int, optional, default=10
+            The number of clusters or neurons that the algorithm will try to fit.
+
+    n_iter : int, optional, default=300
+        Maximum number of iterations of the k-means algorithm for a single run.
+
+    tol: float, default, 1e-4
+        Relative tolerance with regards to distortion before decalring convergence.
+
+    eta: float, optional, default 0.1
+        The learning rate.
+
+    s0: float, optional, default 1
+       The starting value of neurons to change with the selection policy.
+
+    selection: bool, deafult True
+        Controls whether the selection part of the algorithm acutally happens.
+
+    random_state: integer or numpy.RandomState, optional
+            The generator used to initialize the centers.
+            If an integer is given, it fixes the seed. Defaults to the global numpy random
+            number generator.
+
+    Returns
+    ------------
+    centers: ndarray of floats, shape (n_centers, )
+        The centers, neurons or centroids
+
+    distortions: ndarray of floats, shape (n_samples, )
+        This numpy array contains the distance between each sample
+        and the centroid to which it belongs.
+
+    centers_to_data: dictionary
+        The keys of this dictionary are each of the centers and the
+        items are all the indexes of X that belong to that center in
+        the smallest distance sense.
+
+    labels: ndarray of int
+        A vector with each element as the assigned label.
 
     """
     # Initialize the centers and the distortion
@@ -174,19 +267,12 @@ def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, 
     distortions = np.zeros(n_samples)
 
     # Get the s function
-    time = np.arange(0, n_iter)
-    s_half_life = n_iter / 4.0
-    s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
-
-    # Initialize the dictionary
-    centers_to_data = {}
-    for center in range(n_clusters):
-        centers_to_data[center] = []
+    s_sequence = _s_sequence(n_iter, s0)
 
     iterations = 0
     while iterations < n_iter:
         # Competition
-        centers, distortions, centers_to_data = _competition(X, centers, distortions, centers_to_data, eta)
+        centers, distortions, centers_to_data = _competition(X, centers, distortions, n_clusters, eta)
         # Selection
         if selection:
             centers = _selection_algorithm(centers, distortions,
@@ -197,7 +283,9 @@ def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, 
 
         # Implement mechanism for tolerance
 
-    return centers, distortions, centers_to_data
+    # Calculate the final labels
+    labels = _labels(centers_to_data, n_samples)
+    return centers, distortions, centers_to_data, labels
 
 
 class CSL(BaseEstimator, TransformerMixin):
@@ -277,9 +365,17 @@ class CSL(BaseEstimator, TransformerMixin):
         random_state = check_random_state(self.random_state)
         X = self._check_fit_data(X)
 
-        self.centers_, self.distortions_, self.centers_to_data_ = \
+        self.centers_, self.distortions_, self.centers_to_data_, self.labels_ = \
             csl(X, n_clusters=self.n_clusters, n_iter=self.n_iter,
                 tol=self.tol, eta=self.eta, s0=self.s0,
                 random_state=random_state)
 
         return self
+
+
+    def fit_predict(self, X, y=None):
+        """Compute cluster centers and predict cluster index for each sample.
+        Convenience method; equivalent to calling fit(X) followed by
+        predict(X).
+        """
+        return self.fit(X).labels_
