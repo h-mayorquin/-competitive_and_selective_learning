@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import check_array, check_random_state
 
 
-def calculate_local_distortion(distortions, centers_to_data, normalize=True, gamma=0.8):
+def _calculate_local_distortion(distortions, centers_to_data, normalize=True, gamma=0.8):
     """
     Calculates the local distortion
 
@@ -34,27 +34,36 @@ def calculate_local_distortion(distortions, centers_to_data, normalize=True, gam
     return local_distortions
 
 
-def modify_centers(centers, local_distortions, s):
+def _modify_centers(centers, local_distortions, s, random_state):
     """
-    Adds the perturbations to nuerons based on the
-    vector mu which contains information about which
-    neurons have to dissapear and be created.
+    This sends eliminates the s centroids with the smallest local
+    distortion and instead creates new centroids very close to the
+    centroids with the highest distortion.
+
+    Parameters
+    ------------
+
+
+    Attributes
+    --------------
+
+
     """
 
-    Nfeatures = centers.shape[1]
+    n_features = centers.shape[1]
 
-    minimal_distortions = min_numbers(local_distortions, s)
-    maximal_distortions = max_numbers(local_distortions, s)
+    minimal_distortions = _min_numbers(local_distortions, s)
+    maximal_distortions = _max_numbers(local_distortions, s)
 
     # You put more neurons in the area where there is maximal distortion
     for min_index, max_index in zip(minimal_distortions, maximal_distortions):
         # You replaced the neurons of small dis with ones from the big dist
-        centers[min_index, :] = centers[max_index, :] + np.random.rand(Nfeatures)
+        centers[min_index, :] = centers[max_index, :] + random_state.rand(n_features)
 
     return centers
 
 
-def max_numbers(vector, N):
+def _max_numbers(vector, N):
     """
     Gives you the index of the N greatest elements in
     vector
@@ -63,7 +72,7 @@ def max_numbers(vector, N):
     return np.argpartition(-vector, N)[:N]
 
 
-def min_numbers(vector, N):
+def _min_numbers(vector, N):
     """
     Gives you the indexes of the N smallest elements in
     vector
@@ -72,15 +81,15 @@ def min_numbers(vector, N):
     return np.argpartition(vector, N)[:N]
 
 
-def selection_algorithm(centers, distortions, centers_to_data, s):
+def _selection_algorithm(centers, distortions, centers_to_data, s, random_state=None):
     """
     This is the selection algorithm, it selects for
     creation and destruction new neurons
     """
-    local_distortion = calculate_local_distortion(distortions,
-                                                  centers_to_data, normalize=False)
+    local_distortion = _calculate_local_distortion(distortions,
+                                                   centers_to_data, normalize=False)
 
-    centers = modify_centers(centers, local_distortion, s)
+    centers = _modify_centers(centers, local_distortion, s, random_state)
 
     return centers
 
@@ -152,7 +161,7 @@ def _competition(X, centers, distortions, centers_to_data, eta):
     return centers, distortions, centers_to_data
 
 
-def csl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
+def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
     """
     Selective and competitive learning. This implements the whole algorithm.
 
@@ -165,8 +174,8 @@ def csl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True
     distortions = np.zeros(n_samples)
 
     # Get the s function
-    time = np.arange(0, max_iter)
-    s_half_life = max_iter / 4.0
+    time = np.arange(0, n_iter)
+    s_half_life = n_iter / 4.0
     s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
 
     # Initialize the dictionary
@@ -175,13 +184,13 @@ def csl(X, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True
         centers_to_data[center] = []
 
     iterations = 0
-    while iterations < max_iter:
+    while iterations < n_iter:
         # Competition
         centers, distortions, centers_to_data = _competition(X, centers, distortions, centers_to_data, eta)
         # Selection
         if selection:
-            center = selection_algorithm(centers, distortions,
-                                         centers_to_data, s_sequence[iterations])
+            centers = _selection_algorithm(centers, distortions,
+                                           centers_to_data, s_sequence[iterations], random_state)
 
         # Increase iterations
         iterations += 1
@@ -197,14 +206,14 @@ class CSL(BaseEstimator, TransformerMixin):
     The algorithm is implemented in the style of Sklearn.
     """
 
-    def __init__(self, n_clusters=10, max_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
+    def __init__(self, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, random_state=None):
         """
         Parameters
         ------------
         n_clusters : int, optional, default=10
             The number of clusters or neurons that the algorithm will try to fit.
 
-        max_iter : int, optional, default=300
+        n_iter : int, optional, default=300
             Maximum number of iterations of the k-means algorithm for a single run.
 
         tol: float, default, 1e-4
@@ -226,14 +235,27 @@ class CSL(BaseEstimator, TransformerMixin):
         centers_: array, [n_clusters, n_features]
             coordinates of clusters or neurons centers.
 
-        distortion_: float
-            the expected distortion over all the data set
 
+        distortions_: ndarray of floats, shape (n_samples, )
+            This numpy array contains the distance between each sample
+            and the centroid to which it belongs
+
+        centers_to_data_: dictionary
+                The keys of this dictionary are each of the centers and the
+                items are all the indexes of X that belong to that center in
+                the smallest distance sense.
+
+        Notes
+        ----------------
+        This algorithm comes from:
+        Ueda, Naonori, and Ryohei Nakano. "A new competitive learning approach based on
+        an equidistortion principle for designing optimal vector quantizers.
+        " Neural Networks 7.8 (1994): 1211-1227.
 
         """
 
         self.n_clusters = n_clusters
-        self.max_iter = max_iter
+        self.n_iter = n_iter
         self.tol = tol
         self.eta = eta
         self.s0 = s0
@@ -255,8 +277,8 @@ class CSL(BaseEstimator, TransformerMixin):
         random_state = check_random_state(self.random_state)
         X = self._check_fit_data(X)
 
-        self.centers, self.distortions, self.centers_to_data = \
-            csl(X, n_clusters=self.n_clusters, max_iter=self.max_iter,
+        self.centers_, self.distortions_, self.centers_to_data_ = \
+            csl(X, n_clusters=self.n_clusters, n_iter=self.n_iter,
                 tol=self.tol, eta=self.eta, s0=self.s0,
                 random_state=random_state)
 

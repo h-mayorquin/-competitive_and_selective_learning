@@ -30,9 +30,9 @@ s = 2  # Number of neurons to change per round
 eta = 0.1
 T = 50
 
-csl = CSL(n_clusters=N, max_iter=T, tol=0.001, eta=eta, s0=s, random_state=np.random)
+csl = CSL(n_clusters=N, n_iter=T, tol=0.001, eta=eta, s0=s, random_state=np.random)
 csl.fit(X)
-neurons = csl.centers
+neurons = csl.centers_
 
 if plot:
     # Visualize X
