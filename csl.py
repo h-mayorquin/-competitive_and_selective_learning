@@ -34,7 +34,7 @@ def _calculate_local_distortion(distortions, centers_to_data, normalize=True, ga
     return local_distortions
 
 
-def _modify_centers(centers, local_distortions, s, random_state):
+def _modify_centers(centers, local_distortions, s, random_state, std=1):
     """
     This sends eliminates the s centroids with the smallest local
     distortion and instead creates new centroids very close to the
@@ -42,23 +42,43 @@ def _modify_centers(centers, local_distortions, s, random_state):
 
     Parameters
     ------------
+    centers: ndarray of floats, shape (n_centers, )
+        The centers, neurons or centroids
 
+    local_distortions: float ndarray with shape (n_centers, )
+        This is a vector that contains the total distortions for each
+        center.
 
-    Attributes
+    s: int,
+        number of centers, centroids, clusters, neurons to change
+
+    random_state: integer or numpy.RandomState, optional
+                The generator used to initialize the centers.
+                If an integer is given, it fixes the seed. Defaults to the global numpy random
+                number generator.
+
+    std: float,
+        Standard deviation of the noise added for the creation of new examples
+
+    Returns
     --------------
-
+    centers: ndarray of floats, shape (n_centers, )
+        The centers, neurons or centroids
 
     """
-
-    n_features = centers.shape[1]
+    if centers.ndim > 1:
+        n_features = centers.shape[1]
+    else:
+        n_features = 1
 
     minimal_distortions = _min_numbers(local_distortions, s)
     maximal_distortions = _max_numbers(local_distortions, s)
-
+    print('min dis', minimal_distortions)
+    print('max dis', maximal_distortions)
     # You put more neurons in the area where there is maximal distortion
     for min_index, max_index in zip(minimal_distortions, maximal_distortions):
         # You replaced the neurons of small dis with ones from the big dist
-        centers[min_index, :] = centers[max_index, :] + random_state.rand(n_features)
+        centers[min_index, ...] = centers[max_index, ...] + std * random_state.rand(n_features)
 
     return centers
 
@@ -69,7 +89,7 @@ def _max_numbers(vector, N):
     vector
     """
 
-    return np.argpartition(-vector, N)[:N]
+    return np.argpartition(-vector, N)[:N][::-1]
 
 
 def _min_numbers(vector, N):
@@ -166,7 +186,7 @@ def _competition(X, centers, distortions, n_clusters, eta):
 
 def _s_sequence(n_iter, s0):
     """
-    This functions retunrs the sequence (s) of centroids, neurons
+    This functions returns the sequence (s) of centroids, neurons
     or clusters that have to be modified at every iteration step.
 
     Parameters
@@ -181,7 +201,7 @@ def _s_sequence(n_iter, s0):
          the sequence of s values.
     """
     time = np.arange(0, n_iter)
-    s_half_life = n_iter / 4.0
+    s_half_life = n_iter / 2.0
     s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
 
     return s_sequence
@@ -193,7 +213,10 @@ def _labels(centers_to_data, n_samples):
 
     Parameters
     ----------
-    center_to_data:
+    centers_to_data: dictionary
+        The keys of this dictionary are each of the centers and the
+        items are all the indexes of X that belong to that center in
+        the smallest distance sense.
 
     n_samples: int,
         number of samples
@@ -268,13 +291,14 @@ def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, 
 
     # Get the s function
     s_sequence = _s_sequence(n_iter, s0)
+    print('s_sequence', s_sequence)
 
     iterations = 0
     while iterations < n_iter:
         # Competition
         centers, distortions, centers_to_data = _competition(X, centers, distortions, n_clusters, eta)
         # Selection
-        if selection:
+        if iterations < (n_iter - 1):
             centers = _selection_algorithm(centers, distortions,
                                            centers_to_data, s_sequence[iterations], random_state)
 
@@ -371,7 +395,6 @@ class CSL(BaseEstimator, TransformerMixin):
                 random_state=random_state)
 
         return self
-
 
     def fit_predict(self, X, y=None):
         """Compute cluster centers and predict cluster index for each sample.
