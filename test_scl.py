@@ -11,13 +11,14 @@ from functions import selection_algorithm, scl
 
 plot = True
 verbose = False
-tracking = True
-selection = False
+tracking = False
+selection = True
 
 # Generate the data
 n_samples = 1500
 random_state = 20  # Does not converge
-# random_state = 41
+random_state = 41
+random_state = 105
 n_features = 2
 centers = 3
 
@@ -72,15 +73,15 @@ for t, s in zip(time, s_sequence):
         D_vector[x_index] = np.linalg.norm(neurons[closest_neuron, :] - x)
         neuron_to_data[closest_neuron].append(x_index)
 
-    if tracking:
-        follow_neuron_0_x.append(neurons[0, 0])
-        follow_neuron_0_y.append(neurons[0, 1])
+        if tracking:
+            follow_neuron_0_x.append(neurons[0, 0])
+            follow_neuron_0_y.append(neurons[0, 1])
 
-        follow_neuron_1_x.append(neurons[1, 0])
-        follow_neuron_1_y.append(neurons[1, 1])
+            follow_neuron_1_x.append(neurons[1, 0])
+            follow_neuron_1_y.append(neurons[1, 1])
 
-        follow_neuron_2_x.append(neurons[2, 0])
-        follow_neuron_2_y.append(neurons[2, 1])
+            follow_neuron_2_x.append(neurons[2, 0])
+            follow_neuron_2_y.append(neurons[2, 1])
 
     # Selection
     if selection:
@@ -100,7 +101,7 @@ if plot:
     ax = fig.add_subplot(211)
     ax.plot(X[:, 0], X[:, 1], 'x', markersize=6)
     ax.hold(True)
-    if False:
+    if True:
         ax.plot(neurons[0, 0], neurons[0, 1], 'o', markersize=12, label='neuron 1')
         ax.plot(neurons[1, 0], neurons[1, 1], 'o', markersize=12, label='neuron 2')
         ax.plot(neurons[2, 0], neurons[2, 1], 'o', markersize=12, label='neuron 3')
@@ -116,5 +117,5 @@ if plot:
     ax2 = fig.add_subplot(212)
     ax2.plot(time, total_distortion)
 
-    fig.show()
+    plt.show()
 

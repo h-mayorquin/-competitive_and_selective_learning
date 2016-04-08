@@ -14,7 +14,20 @@ def _calculate_local_distortion(distortions, centers_to_data, normalize=True, ga
 
     Parameters
     ---------------
+    distortions: ndarray of floats, shape (n_samples, )
+        This numpy array contains the distance between each sample
+        and the centroid to which it belongs.
 
+    centers_to_data: dictionary
+        The keys of this dictionary are each of the centers and the
+        items are all the indexes of X that belong to that center in
+        the smallest distance sense.
+
+    normalize: bool, optional default: true
+       Normalizes the distortions or not.
+
+    gamma: float, optional default: 0.8
+        Is a normal constant to avoid overselection, check the paper.
 
     Returns
     ---------------
@@ -73,8 +86,6 @@ def _modify_centers(centers, local_distortions, s, random_state, std=1):
 
     minimal_distortions = _min_numbers(local_distortions, s)
     maximal_distortions = _max_numbers(local_distortions, s)
-    print('min dis', minimal_distortions)
-    print('max dis', maximal_distortions)
     # You put more neurons in the area where there is maximal distortion
     for min_index, max_index in zip(minimal_distortions, maximal_distortions):
         # You replaced the neurons of small dis with ones from the big dist
@@ -86,7 +97,7 @@ def _modify_centers(centers, local_distortions, s, random_state, std=1):
 def _max_numbers(vector, N):
     """
     Gives you the index of the N greatest elements in
-    vector
+    vector (not in order)
     """
 
     return np.argpartition(-vector, N)[:N][::-1]
@@ -95,7 +106,7 @@ def _max_numbers(vector, N):
 def _min_numbers(vector, N):
     """
     Gives you the indexes of the N smallest elements in
-    vector
+    vector (not in order)
     """
 
     return np.argpartition(vector, N)[:N]
@@ -105,6 +116,35 @@ def _selection_algorithm(centers, distortions, centers_to_data, s, random_state=
     """
     This is the selection algorithm, it selects for
     creation and destruction new neurons
+
+    Parameters
+    ------------
+    centers: ndarray of floats, shape (n_centers, )
+        The centers, neurons or centroids
+
+    distortions: ndarray of floats, shape (n_samples, )
+        This numpy array contains the distance between each sample
+        and the centroid to which it belongs.
+
+    centers_to_data: dictionary
+        The keys of this dictionary are each of the centers and the
+        items are all the indexes of X that belong to that center in
+        the smallest distance sense.
+
+    s: int,
+        The number of neurons, centers, centroids to select.
+
+    random_state: integer or numpy.RandomState, optional
+        The generator used to initialize the centers.
+        If an integer is given, it fixes the seed. Defaults to the global numpy random
+        number generator.
+
+    Returns
+    ----------
+    centers: ndarray of floats, shape (n_centers, )
+        The centers, neurons or centroids
+
+
     """
     local_distortion = _calculate_local_distortion(distortions,
                                                    centers_to_data, normalize=False)
@@ -189,6 +229,10 @@ def _s_sequence(n_iter, s0):
     This functions returns the sequence (s) of centroids, neurons
     or clusters that have to be modified at every iteration step.
 
+    This returns 0 changes after 9 / 10 of the total iterations. In
+    other words the algorithm stops modifying neurons after 9 / 10
+    of the time.
+
     Parameters
     ------------------
     n_iter: int
@@ -201,7 +245,7 @@ def _s_sequence(n_iter, s0):
          the sequence of s values.
     """
     time = np.arange(0, n_iter)
-    s_half_life = n_iter / 2.0
+    s_half_life = 0.9 * n_iter / np.log(s0)
     s_sequence = np.floor(s0 * np.exp(-time / s_half_life)).astype('int')
 
     return s_sequence
@@ -291,7 +335,6 @@ def csl(X, n_clusters=10, n_iter=300, tol=0.001, eta=0.1, s0=1, selection=True, 
 
     # Get the s function
     s_sequence = _s_sequence(n_iter, s0)
-    print('s_sequence', s_sequence)
 
     iterations = 0
     while iterations < n_iter:
